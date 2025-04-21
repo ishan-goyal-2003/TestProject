@@ -1,0 +1,124 @@
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using backend.Models;
+
+[Route("api/[controller]")]
+[ApiController]
+public class EquityController : ControllerBase
+{
+    [HttpGet("{username}")]
+    public IActionResult GetEquity(string username)
+    {
+        var json = System.IO.File.ReadAllText("Data/equityData.json");
+        var allEquity = JsonSerializer.Deserialize<Dictionary<string, List<EquityAward>>>(json);
+
+        if (allEquity.ContainsKey(username))
+            return Ok(allEquity[username]);
+
+        return NotFound();
+    }
+}
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using backend.Models;
+
+[Route("api/[controller]")]
+[ApiController]
+public class LoginController : ControllerBase
+{
+    [HttpPost("login")]
+    public IActionResult Login([FromBody] User loginUser)
+    {
+        var json = System.IO.File.ReadAllText("Data/users.json");
+        var users = JsonSerializer.Deserialize<List<User>>(json);
+
+        var user = users.FirstOrDefault(u => u.Username == loginUser.Username && u.Password == loginUser.Password);
+
+        if (user == null)
+            return Unauthorized("Invalid credentials");
+
+        return Ok(new { user.Username, user.Name });
+    }
+}
+
+[
+    {
+        "userId": 1,
+        "awards":[
+            {
+                "equityType": "RSU",
+                "vestedDate": "2025-05-01",
+                "amount": 100,
+                "vested": true,
+                "stockSymbol":"Mph"
+            },
+            {
+                "equityType": "ESOPES",
+                "vestedDate": "2026-01-01",
+                "amount": 150,
+                "vested": false,
+                "stockSymbol":"Mph"
+            }
+        ]
+    }
+]
+[
+    {"id": 1,"username": "ishan","password":"1234","name":"Ishan Goyal"},
+    {"id": 2,"username": "vishal","password":"4321","name":"Vishal Modi"}
+]
+
+namespace backend.Models
+{
+    public class EquityAward{
+        public string EquitType{get; set;}
+        public DateTime VestedDate {get; set;}
+        public int Amount {get; set;}
+        public bool Vested {get; set;}
+        public string StockSymbol {get;set;}
+    }
+
+    public class EquityData{
+        public int UserId {get; set;}
+        public List<EquityAward> Awards{get;set;}
+    }
+}
+namespace backend.Models
+{
+    public class User
+    {
+        public int Id {get; set;}
+        public string Username {get; set;}
+        public string Password {get; set;}
+        public string Name {get; set;}
+    }
+}
+
+
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.6" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+  </ItemGroup>
+
+</Project>
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+var app = builder.Build();
+app.UseCors("AllowAll");
+app.MapControllers();
+app.Run();
+
+
+
+
