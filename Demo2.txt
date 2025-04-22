@@ -1,0 +1,59 @@
+LoginController.cs
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using backend.Models;
+
+[ApiController]
+[Route("api/[controller]")]
+public class LoginController : ControllerBase
+{
+    [HttpPost("Login")]
+    public IActionResult Login([FromBody] User loginUser)
+    {
+        var json = System.IO.File.ReadAllText("Data/users.json");
+        var users = JsonSerializer.Deserialize<List<User>>(json);
+
+        var user = users?.FirstOrDefault(u => u.Username == loginUser.Username && u.Password == loginUser.Password);
+
+        if (user == null)
+            return Unauthorized("Invalid credentials");
+
+        return Ok(new { user.Username, user.Name });
+    }
+}
+
+users.json
+[
+    {"id": 1,"username": "ishan","password":"1234","name":"Ishan Goyal"},
+    {"id": 2,"username": "vishal","password":"4321","name":"Vishal Modi"}
+]
+
+User.cs
+namespace backend.Models
+{
+    public class User
+    {
+        public int Id {get; set;}
+        public string Username {get; set;} = string.Empty;
+        public string Password {get; set;} = string.Empty;
+        public string Name {get; set;} = string.Empty;
+    }
+}
+
+Program.cs
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+//builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+var app = builder.Build();
+
+app.UseCors("AllowAll");
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+
+
+
