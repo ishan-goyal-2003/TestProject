@@ -1,0 +1,971 @@
+AuthController.cs
+using Microsoft.AspNetCore.Mvc;
+ 
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController : ControllerBase
+{
+    private readonly AuthService _authService;
+ 
+    public AuthController()
+    {
+        _authService = new AuthService();
+    }
+ 
+    [HttpPost("register")]
+    public IActionResult Register([FromBody] User user)
+    {
+        if (_authService.Register(user))
+            return Ok(new { message = "User registered successfully" });
+        return BadRequest(new { message = "Username already exists" });
+    }
+ 
+    [HttpPost("login")]
+    public IActionResult Login([FromBody] AuthRequest request)
+    {
+        var token = _authService.Authenticate(request.Username, request.Password);
+        if (token == null)
+            return Unauthorized(new { message = "Invalid username or password" });
+        return Ok(new { token });
+    }
+}
+
+user.json
+[
+  {
+    "Username": "Akhya@gmail.com",
+    "Password": "123456",
+    "Role": "user"
+  },
+  {
+    "Username": "ishan@gmail.com",
+    "Password": "12344321",
+    "Role": "user"
+  },
+  {
+    "Username": "Gautam@gmail.com",
+    "Password": "12341234",
+    "Role": "user"
+  },
+  {
+    "Username": "ishan123@gmail.com",
+    "Password": "123321",
+    "Role": "user"
+  },
+  {
+    "Username": "ishan000@gmail.com",
+    "Password": "000000",
+    "Role": "user"
+  },
+  {
+    "Username": "chirag@gmail.com",
+    "Password": "Chirag@123",
+    "Role": "user"
+  },
+  {
+    "Username": "ishan12345@gmail.com",
+    "Password": "1234554321",
+    "Role": "user"
+  },
+  {
+    "Username": "ishan1234@gmail.com",
+    "Password": "123456",
+    "Role": "user"
+  }
+]
+
+Middleware/JwtMiddleware
+using Microsoft.AspNetCore.Http;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims; // For ClaimTypes
+using System.Text; // For Encoding
+using System.Threading.Tasks;
+using Microsoft.IdentityModel.Tokens; // For TokenValidationParameters and SymmetricSecurityKey
+ 
+public class JwtMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly string _jwtSecret = "ThisIsA32CharacterLongSecretKey!"; // Replace with a secure key
+ 
+    public JwtMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+ 
+    public async Task Invoke(HttpContext context)
+    {
+        var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+        if (token != null)
+            AttachUserToContext(context, token);
+ 
+        await _next(context);
+    }
+ 
+    private void AttachUserToContext(HttpContext context, string token)
+    {
+        try
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_jwtSecret);
+            tokenHandler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ClockSkew = TimeSpan.Zero
+            }, out SecurityToken validatedToken);
+ 
+            var jwtToken = (JwtSecurityToken)validatedToken;
+            var username = jwtToken.Claims.First(x => x.Type == ClaimTypes.Name).Value;
+ 
+            context.Items["User"] = username;
+        }
+        catch
+        {
+            // Do nothing if JWT validation fails
+        }
+    }
+}
+
+Models/
+
+
+    public class AuthRequest
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+public class User
+{
+    public string Username { get; set; }
+    public string Password { get; set; }
+    public string Role { get; set; }
+}
+
+Services/AuthService.cs
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
+ 
+public class AuthService
+{
+    private readonly string _jsonFilePath = "Data/users.json";
+    private readonly string _jwtSecret = "ThisIsA32CharacterLongSecretKey!";
+ 
+    public List<User> GetUsers()
+    {
+        if (!File.Exists(_jsonFilePath)) return new List<User>();
+        var json = File.ReadAllText(_jsonFilePath);
+        return JsonConvert.DeserializeObject<List<User>>(json) ?? new List<User>();
+    }
+ 
+    public void SaveUsers(List<User> users)
+    {
+        var json = JsonConvert.SerializeObject(users, Formatting.Indented);
+        File.WriteAllText(_jsonFilePath, json);
+    }
+ 
+    public string Authenticate(string username, string password)
+    {
+        var users = GetUsers();
+        var user = users.FirstOrDefault(u => u.Username == username && u.Password == password);
+        if (user == null) return null;
+ 
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.ASCII.GetBytes(_jwtSecret);
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, user.Username), new Claim(ClaimTypes.Role, user.Role) }),
+            Expires = DateTime.UtcNow.AddHours(1),
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
+    }
+ 
+    public bool Register(User user)
+    {
+        var users = GetUsers();
+        if (users.Any(u => u.Username == user.Username)) return false;
+ 
+        users.Add(user);
+        SaveUsers(users);
+        return true;
+    }
+}
+
+appsetting.json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+
+Program.cs
+using Microsoft.AspNetCore.Builder;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using Microsoft.Extensions.Hosting;
+
+using Microsoft.Extensions.Configuration;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container
+builder.Services.AddControllers();
+builder.Services.AddHttpClient<StockService>();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngularApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:4200") // Allow Angular frontend
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Allow cookies or credentials if needed
+    });
+});
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+app.UseCors("AllowAngularApp");
+
+app.UseMiddleware<JwtMiddleware>();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+
+EquityAwardTrackerApi.csproj
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.14" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.9.0" />
+  </ItemGroup>
+
+</Project>
+
+Above code is backend code now i am giving you my frontend code
+
+dashboard.ts
+import { Component, OnInit, ViewChild, HostListener } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Chart, registerables } from 'chart.js';
+import { CommonModule } from '@angular/common';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatSortModule, MatSort } from '@angular/material/sort';
+import { Router } from '@angular/router';
+import { AuthService } from '../../services/auth.service'; // Import AuthService
+
+@Component({
+  selector: 'app-dashboard',
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatTableModule,
+    MatSortModule
+  ],
+  templateUrl: './dashboard.component.html',
+  styleUrls: ['./dashboard.component.css']
+})
+export class DashboardComponent implements OnInit {
+  username: string = 'User';
+  vestedShares: number = 0;
+  totalAwards: number = 0;
+  currentValue: number = 0;
+  awardsList: { shareType: string; totalShares: number; vestedShares: number; vestingDate: string; currentValue: number }[] = [];
+  pieChartData: { vested: number; unvested: number } = { vested: 0, unvested: 0 };
+
+  displayedColumns: string[] = ['shareType', 'totalShares', 'vestedShares', 'vestingDate'];
+  dataSource = new MatTableDataSource(this.awardsList);
+
+  @ViewChild(MatSort) sort!: MatSort;
+
+  showNotifications: boolean = false;
+  showStockDetails: boolean = false; // State to control visibility of stock details and chart
+  
+  notifications: string[] = [
+    'New RSU grant added.',
+    'ESOP vesting date updated.',
+    'Your portfolio value increased by 10%.',
+    'Reminder: Vesting date approaching.'
+  ];
+
+  isDarkTheme: boolean = true; // Default to dark theme
+
+  constructor(private http: HttpClient, private router: Router, private authService: AuthService) {
+    Chart.register(...registerables);
+  }
+
+  ngOnInit(): void {
+    // Prevent back navigation
+    history.pushState(null, '', location.href);
+    window.onpopstate = () => {
+      history.pushState(null, '', location.href); // Prevent back navigation
+    };
+
+    // Initialize theme
+    if (this.isDarkTheme) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.add('light-theme');
+    }
+
+    // Existing initialization logic
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    this.username = user.username || 'User';
+    this.fetchEquityData();
+  }
+
+  toggleNotifications() {
+    this.showNotifications = !this.showNotifications;
+  }
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    const isNotificationButton = target.closest('.notification-button');
+    const isNotificationDropdown = target.closest('.notification-dropdown');
+
+    if (!isNotificationButton && !isNotificationDropdown) {
+      this.showNotifications = false;
+    }
+  }
+
+  toggleTheme(): void {
+    this.isDarkTheme = !this.isDarkTheme;
+
+    if (this.isDarkTheme) {
+      document.body.classList.add('dark-theme');
+      document.body.classList.remove('light-theme');
+    } else {
+      document.body.classList.add('light-theme');
+      document.body.classList.remove('dark-theme');
+    }
+
+    // Re-render charts with updated colors
+    this.renderPieChart();
+    this.renderLineChart();
+  }
+
+  fetchEquityData() {
+    this.http.get<any>(`http://localhost:5290/api/equity/${this.username}`).subscribe(data => {
+      console.log('API Response:', data);
+      if (data && data.awards) {
+        this.awardsList = data.awards;
+        this.dataSource.data = this.awardsList;
+        this.dataSource.sort = this.sort;
+        this.totalAwards = this.awardsList.length;
+        this.vestedShares = this.awardsList.reduce((sum: number, award: { vestedShares: number }) => sum + award.vestedShares, 0);
+        this.currentValue = this.awardsList.reduce((sum: number, award: { currentValue: number }) => sum + award.currentValue, 0);
+        const totalShares = this.awardsList.reduce((sum: number, award: { totalShares: number }) => sum + award.totalShares, 0);
+        this.pieChartData = {
+          vested: this.vestedShares,
+          unvested: totalShares - this.vestedShares
+        };
+        this.renderPieChart();
+        this.renderLineChart();
+      } else {
+        console.error('Invalid API response structure:', data);
+      }
+    }, error => {
+      console.error('Error fetching equity data:', error);
+    });
+  }
+
+  renderPieChart() {
+    const canvas = document.getElementById('pieChart') as HTMLCanvasElement;
+    if (!canvas) {
+      console.error('Pie chart canvas not found');
+      return;
+    }
+
+    if (this.pieChartData.vested === 0 && this.pieChartData.unvested === 0) {
+      console.error('Pie chart data is empty');
+      return;
+    }
+
+    new Chart(canvas, {
+      type: 'pie',
+      data: {
+        labels: ['Vested Shares', 'Unvested Shares'],
+        datasets: [{
+          data: [this.pieChartData.vested, this.pieChartData.unvested],
+          backgroundColor: ['#5E60CE', '#5390D9'],
+          borderColor: ['#282833', '#282833'],
+          borderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+  }
+  renderLineChart() {
+    const canvas = document.getElementById('lineChart') as HTMLCanvasElement;
+    // if (!canvas) {
+    //   console.error('Line chart canvas not found');
+    //   return;
+    // }
+    const groupedData: { [key: string]: { vestingDate: string; vestedShares: number }[] } = {};
+    this.awardsList.forEach(award => {
+      if (!groupedData[award.shareType]) {
+        groupedData[award.shareType] = [];
+      }
+      groupedData[award.shareType].push({
+        vestingDate: award.vestingDate,
+        vestedShares: award.vestedShares
+      });
+    });
+  
+    const datasets = Object.keys(groupedData).map(shareType => {
+      const data = groupedData[shareType];
+      return {
+        label: shareType, 
+        data: data.map(item => item.vestedShares), 
+        borderColor: shareType === 'RSU' ? '#5E60CE' : '#5390D9', 
+        backgroundColor: shareType === 'RSU' ? 'rgba(94, 96, 206, 0.2)' : 'rgba(83, 144, 217, 0.2)',
+        borderWidth: 2,
+        fill: true
+      };
+    });
+  
+    const labels = groupedData[Object.keys(groupedData)[0]].map(item => item.vestingDate);
+  
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: labels, 
+        datasets: datasets 
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Vesting Date',
+              // color: '#ffffff'
+            },
+            ticks: {
+             // color: '#ffffff'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Vested Shares',
+              //color: '#ffffff'
+            },
+            ticks: {
+              //color: '#ffffff'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              //color: '#ffffff'
+            }
+          }
+        }
+      }
+    });
+  }
+  logout() {
+    this.authService.logout(); // Use the centralized logout method
+  }
+
+  onCurrentValueClick(): void {
+    this.router.navigate(['/stock-tracker']); // Navigate to the stock tracker route
+  }
+}
+
+dashboard.html
+<div class="container-fluid">
+  <nav class="navbar navbar-light d-flex justify-content-between navbar-full">
+    <h4 style="color: #B197FC;"><i class="fa-solid fa-chart-simple" style="color: #74C0FC; margin-right: 5px;"></i>EQT</h4>
+    <span class="navbar-brand mb-0 h1 text-center"><i class="fa-solid fa-door-open" style="color: #63E6BE; margin-right: 10px;"></i>Welcome</span>
+    <div class="notification-container">
+      <button class="notification-button" (click)="toggleNotifications()">
+        <i class="fa-solid fa-bell" style="color: #74C0FC;"></i>
+      </button>
+      <div class="notification-dropdown" *ngIf="showNotifications">
+        <ul>
+          <li *ngFor="let notification of notifications"><i class="fa-solid fa-exclamation fa-xl" style="color: #ffd436; margin-right: 10px;"></i>{{ notification }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Add Theme Toggle Button -->
+    <button class="theme-toggle-button" (click)="toggleTheme()">
+      <i class="fa-solid fa-sun" *ngIf="isDarkTheme" style="color: #FFD700;"></i>
+      <i class="fa-solid fa-moon" *ngIf="!isDarkTheme" style="color: #685f5f;"></i>
+    </button>
+
+    <button class="logout-button" (click)="logout()"><i class="fa-solid fa-right-from-bracket" style="color: #ff1a1a;"></i></button>
+  </nav>
+
+  <div class="row mt-4">
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title"><i class="fa-solid fa-wallet" style="color: #5E60CE;"></i>Vested Shares</h5>
+          <p class="card-text"><b>{{ vestedShares }}</b></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title"><i class="fa-solid fa-vault" style="color: #5390D9;"></i>Unvested Shares</h5>
+          <p class="card-text"><b>{{ pieChartData.unvested }}</b></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h5 class="card-title"><i class="fa-solid fa-piggy-bank" style="color: #63E6BE;"></i>Total Awards</h5>
+          <p class="card-text"><b>{{ totalAwards }}</b></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center card-current" (click)="onCurrentValueClick()" style="cursor: pointer;">
+        <div class="card-body">
+          <h5 class="card-title"><i class="fa-solid fa-chart-line" style="color: #B197FC;"></i>Current Value</h5>
+          <p class="card-text"><i class="fa-solid fa-indian-rupee-sign" style="color: #ffffff; margin-right:5px ;"></i><b>{{ currentValue }}</b></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-md-6">
+    <div class="card text-center">  
+      <canvas id="pieChart" style="width: 100%; height: 350px;"></canvas>
+    </div>  
+    </div>
+    <div class="col-md-6">
+      <!-- <div class="table-card text-center">
+        <div class="card-body">
+          <h5 class="card-title"><i class="fa-solid fa-calendar-week" style="color: #B197FC;"></i>Awards Table</h5>
+          <div class="table-container">
+          <table class="awards-table">
+            <thead>
+              <tr>
+                <th>Share Type</th>
+                <th>Total Shares</th>
+                <th>Vested Shares</th>
+                <th>Vesting Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let award of awardsList">
+                <td>{{ award.shareType }}</td>
+                <td>{{ award.totalShares }}</td>
+                <td>{{ award.vestedShares }}</td>
+                <td>{{ award.vestingDate }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        </div>
+      </div>
+    </div> -->
+    <div class="table-card text-center">
+      <div class="card-body">
+        <h5 class="card-title"><i class="fa-solid fa-calendar-week" style="color: #B197FC;"></i> Awards Table</h5>
+        <div class="table-container">
+          <table mat-table [dataSource]="dataSource" matSort class="awards-table">
+            
+            <ng-container matColumnDef="shareType">
+              <th mat-header-cell *matHeaderCellDef> Share Type </th>
+              <td mat-cell *matCellDef="let element"> {{ element.shareType }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="totalShares">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header> Total Shares </th>
+              <td mat-cell *matCellDef="let element"> {{ element.totalShares }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="vestedShares">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header> Vested Shares </th>
+              <td mat-cell *matCellDef="let element"> {{ element.vestedShares }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="vestingDate">
+              <th mat-header-cell *matHeaderCellDef> Vesting Date </th>
+              <td mat-cell *matCellDef="let element"> {{ element.vestingDate }} </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="custom-row"></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row mt-4">
+  <div class="col-md-12">
+    <div class="card text-center">
+      <canvas id="lineChart" style="width: 100%; height: 350px;"></canvas>
+    </div>
+  </div>
+</div>
+</div>
+
+login.ts
+import { Component, OnInit } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router'; 
+
+@Component({
+  selector: 'app-login',
+  templateUrl: './login.component.html',
+  styleUrls: ['./login.component.css'],
+  standalone: true, 
+  imports: [ReactiveFormsModule, CommonModule,RouterModule],
+})
+export class LoginComponent implements OnInit {
+  loginForm!: FormGroup;
+  errorMessage: string = '';
+  successMessage: string = '';
+
+  constructor(private fb: FormBuilder, private http: HttpClient,private router: Router) {}
+
+  ngOnInit(): void {
+    this.loginForm = this.fb.group({
+      username: ['', [Validators.required, Validators.email]],
+      password: ['', [Validators.required, Validators.minLength(6)]],
+    });
+  }
+
+  onSubmit(): void {
+    if (this.loginForm.valid) {
+      const { username, password } = this.loginForm.value;
+
+      
+      this.http.post('http://localhost:5290/api/auth/login', { Username: username, Password: password }).subscribe({
+        next: (response: any) => {
+          localStorage.setItem('token', response.token);
+          localStorage.setItem('user', JSON.stringify({ username }));
+          this.router.navigate(['/dashboard']).then(() => {
+            history.replaceState({}, '', '/dashboard'); // Clear navigation history
+          });
+      },
+        error: (error) => {
+          this.errorMessage = error.error?.message || 'Invalid username or password.';
+          this.successMessage = '';
+        },
+      });
+    } else {
+      this.errorMessage = 'Please fill out the form correctly.';
+    }
+  }
+}
+
+register.ts
+import { Component, OnInit } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router'; // Import Router
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'app-register',
+  templateUrl: './register.component.html',
+  styleUrls: ['./register.component.css'],
+  standalone: true, // If using standalone components
+  imports: [ReactiveFormsModule, CommonModule], // Import required modules
+})
+export class RegisterComponent implements OnInit {
+  registerForm!: FormGroup;
+  errorMessage: string = '';
+  successMessage: string = '';
+
+  constructor(private fb: FormBuilder, private http: HttpClient, private router: Router) {} // Inject Router
+
+  ngOnInit(): void {
+    this.registerForm = this.fb.group({
+      username: ['', [Validators.required, Validators.email]],
+      password: ['', [Validators.required, Validators.minLength(6)]],
+      role: ['user', [Validators.required]], // Default role is 'user'
+    });
+  }
+
+  onSubmit(): void {
+    if (this.registerForm.valid) {
+      const { username, password, role } = this.registerForm.value;
+  
+      // Send user credentials to the backend
+      this.http.post('http://localhost:5290/api/auth/register', { Username: username, Password: password, Role: role }).subscribe({
+        next: (response: any) => {
+          this.successMessage = response.message || 'Registration successful!';
+          this.errorMessage = '';
+  
+          console.log('Registration successful, navigating to login page...');
+          // Navigate to the login page after successful registration
+          this.router.navigate(['/login']).then(() => {
+            console.log('Navigation to login page successful.');
+          }).catch((err) => {
+            console.error('Navigation error:', err);
+          });
+        },
+        error: (error) => {
+          this.errorMessage = error.error?.message || 'An error occurred while registering.';
+          this.successMessage = '';
+        },
+      });
+    } else {
+      this.errorMessage = 'Please fill out the form correctly.';
+    }
+  }
+}
+
+auth.interceptor
+import { Injectable } from '@angular/core';
+import { HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { AuthService } from '../services/auth.service';
+import { AppComponent } from '../app.component';
+
+@Injectable()
+export class AuthInterceptor implements HttpInterceptor {
+  constructor(private authService: AuthService, private appComponent: AppComponent) {}
+
+  intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    const token = localStorage.getItem('token');
+    if (token) {
+      req = req.clone({
+        setHeaders: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
+
+    return next.handle(req).pipe(
+      catchError((error) => {
+        if (error.status === 401) {
+          // Show popup instead of alert
+          this.appComponent.showLogoutPopup(
+            'Session Expired',
+            'Your session has expired or the token is invalid. Please log in again.'
+          );
+        }
+        return throwError(error);
+      })
+    );
+  }
+}
+
+auth.service.ts
+import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class AuthService {
+  constructor(private router: Router) {}
+
+  isAuthenticated(): boolean {
+    const token = localStorage.getItem('token');
+    if (token && !this.isTokenExpired(token)) {
+      return true;
+    }
+    return false;
+  }
+
+  isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp < Date.now() / 1000;
+    } catch (e) {
+      return true;
+    }
+  }
+
+
+logout(): void {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('username');
+  this.router.navigate(['/']).then(() => {
+    history.replaceState({}, '', '/'); // Clear navigation history
+  });
+}
+}
+
+app.comonent.html
+<router-outlet></router-outlet>
+
+<!-- Popup HTML -->
+<div class="popup-overlay" *ngIf="showPopup">
+  <div class="popup-card">
+    <h3>{{ popupTitle }}</h3>
+    <p>{{ popupMessage }}</p>
+    <button class="btn btn-primary" (click)="closePopup()">OK</button>
+  </div>
+</div>
+
+app.component.ts
+import { Component } from '@angular/core';
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { RouterModule } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
+import { StockChartComponent } from './component/stock-chart/stock-chart.component';
+import { StockDetailComponent } from './component/stock-detail/stock-detail.component';
+import { CommonModule } from '@angular/common';
+import { AuthService } from './services/auth.service';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule, RouterOutlet],
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css'] 
+})
+export class AppComponent {
+  static instance: AppComponent; // Static reference to the AppComponent
+
+  title = 'equity-award-tracker';
+  stockData: any; 
+  symbol: string = 'AAPL'; 
+  showPopup: boolean = false;
+  popupTitle: string = '';
+  popupMessage: string = '';
+
+  constructor(private authService: AuthService) {
+    AppComponent.instance = this; // Assign the static reference
+  }
+
+  showLogoutPopup(title: string, message: string): void {
+    this.popupTitle = title;
+    this.popupMessage = message;
+    this.showPopup = true;
+  }
+
+  closePopup(): void {
+    this.showPopup = false;
+    this.authService.logout();
+  }
+}
+
+app.config.ts
+import { ApplicationConfig, provideZoneChangeDetection, importProvidersFrom } from '@angular/core';
+import { provideHttpClient, HttpClientModule } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideHttpClient(), // Add HttpClient support
+    HttpClientModule, // Add HttpClientModule for HTTP requests
+    provideRouter(routes), // Provide the router with routes
+    provideZoneChangeDetection({ eventCoalescing: true }) // Enable zone change detection with event coalescing
+  ],
+};
+
+
+app.route.ts
+import { Routes } from '@angular/router';
+import { LoginComponent } from './component/login/login.component';
+import { DashboardComponent } from './component/dashboard/dashboard.component';
+import { AppComponent } from './app.component';
+import { RegisterComponent } from './component/register/register.component'; // Import RegisterComponent
+import { AuthGuard } from './auth.guard'; // Import the AuthGuard
+import { StockTrackerComponent } from './component/stock-tracker/stock-tracker.component'; // Import StockTrackerComponent
+
+export const routes: Routes = [
+  { path: '', component: LoginComponent }, // Default route for login
+  { path: 'dashboard', component: DashboardComponent, canActivate: [AuthGuard]  }, // Dashboard route
+  { path: 'register', component: RegisterComponent }, // Register route
+  { path: 'stock-tracker', component: StockTrackerComponent }, // Stock tracker route
+  { path: '**', redirectTo: '', pathMatch: 'full' } // Redirect unknown routes to login
+];
+
+auth.gaurd.ts
+import { Injectable } from '@angular/core';
+import { CanActivate, Router } from '@angular/router';
+import { AuthService } from './services/auth.service';
+import { AppComponent } from './app.component'; // Import AppComponent
+
+@Injectable({
+  providedIn: 'root',
+})
+export class AuthGuard implements CanActivate {
+  constructor(private authService: AuthService, private router: Router) {}
+
+  canActivate(): boolean {
+    if (this.authService.isAuthenticated()) {
+      return true;
+    } else {
+      // Trigger the popup using the static AppComponent instance
+      AppComponent.instance.showLogoutPopup(
+        'Session Expired',
+        'Your session has expired or the token is invalid. Please log in again.'
+      );
+
+      // Clear localStorage and redirect to login
+      this.authService.logout();
+      this.router.navigate(['/']);
+      return false;
+    }
+  }
+}
+
+main.ts
+import { bootstrapApplication } from '@angular/platform-browser';
+import { AppComponent } from './app/app.component';
+import { provideHttpClient, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { importProvidersFrom } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { provideRouter } from '@angular/router';
+import { routes } from './app/app.routes';
+import { AuthInterceptor } from './app/interceptors/auth.interceptor';
+
+bootstrapApplication(AppComponent, {
+  providers: [
+    provideRouter(routes),
+    provideHttpClient(),
+    importProvidersFrom(FormsModule),
+    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true }
+  ]
+}).catch((err) => console.error(err));
+
+
