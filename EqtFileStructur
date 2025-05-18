@@ -1,0 +1,129 @@
+EQT_Final_Main/
+└── EQT_UI/
+    ├── .editorconfig
+    ├── .gitignore
+    ├── angular.json
+    ├── package.json
+    ├── README.md
+    ├── tsconfig.app.json
+    ├── tsconfig.json
+    ├── tsconfig.spec.json
+    ├── .angular/
+    │   └── cache/
+    │       └── 19.2.11/
+    ├── .vscode/
+    │   ├── extensions.json
+    │   ├── launch.json
+    │   └── tasks.json
+    ├── public/
+    │   └── favicon.ico
+    ├── src/
+    │   ├── index.html
+    │   ├── main.ts
+    │   ├── styles.css
+    │   └── app/
+    │       ├── app.component.css
+    │       ├── app.component.html
+    │       ├── app.component.spec.ts
+    │       ├── app.component.ts
+    │       ├── app.config.ts
+    │       ├── app.routes.ts
+    │       ├── auth.guard.spec.ts
+    │       ├── auth.guard.ts
+    │       ├── component/
+    │       │   ├── dashboard/
+    │       │   │   ├── dashboard.component.css
+    │       │   │   ├── dashboard.component.html
+    │       │   │   ├── dashboard.component.spec.ts
+    │       │   │   └── dashboard.component.ts
+    │       │   ├── login/
+    │       │   │   ├── login.component.css
+    │       │   │   ├── login.component.html
+    │       │   │   ├── login.component.spec.ts
+    │       │   │   └── login.component.ts
+    │       │   ├── register/
+    │       │   │   ├── register.component.css
+    │       │   │   ├── register.component.html
+    │       │   │   ├── register.component.spec.ts
+    │       │   │   └── register.component.ts
+    │       │   ├── stock-chart/
+    │       │   │   ├── stock-chart.component.css
+    │       │   │   ├── stock-chart.component.html
+    │       │   │   ├── stock-chart.component.spec.ts
+    │       │   │   └── stock-chart.component.ts
+    │       │   ├── stock-detail/
+    │       │   │   ├── stock-detail.component.css
+    │       │   │   ├── stock-detail.component.html
+    │       │   │   ├── stock-detail.component.spec.ts
+    │       │   │   └── stock-detail.component.ts
+    │       │   ├── stock-tracker/
+    │       │   │   ├── stock-tracker.component.css
+    │       │   │   ├── stock-tracker.component.html
+    │       │   │   ├── stock-tracker.component.spec.ts
+    │       │   │   └── stock-tracker.component.ts
+    │       │   └── ... (other components if any)
+    │       ├── interceptors/
+    │       │   ├── auth.interceptor.spec.ts
+    │       │   └── auth.interceptor.ts
+    │       ├── services/
+    │       │   ├── auth.service.spec.ts
+    │       │   ├── auth.service.ts
+    │       │   ├── dashboard.service.spec.ts
+    │       │   ├── dashboard.service.ts
+    │       │   ├── stock.service.spec.ts
+    │       │   └── stock.service.ts
+    │       └── ... (other files if any)
+    └── ...
+
+EQT_API/
+├── appsettings.Development.json
+├── appsettings.json
+├── EquityAwardTrackerApi.csproj
+├── EquityAwardTrackerApi.http
+├── Program.cs
+├── README.md
+├── bin/
+│   └── Debug/
+│       └── net8.0/
+│           ├── Data/
+│           │   ├── equityData.json
+│           │   └── users.json
+│           ├── EquityAwardTrackerApi.dll
+│           ├── EquityAwardTrackerApi.exe
+│           ├── EquityAwardTrackerApi.deps.json
+│           ├── EquityAwardTrackerApi.pdb
+│           ├── EquityAwardTrackerApi.runtimeconfig.json
+│           └── ... (other build outputs)
+├── Controllers/
+│   ├── AuthController.cs
+│   ├── EquityController.cs
+│   └── StockController.cs
+├── Data/
+│   ├── equityData.json
+│   └── users.json
+├── Middleware/
+│   └── JwtMiddleware.cs
+├── Models/
+│   ├── AuthRequest.cs
+│   ├── EquityAward.cs
+│   ├── EquityData.cs
+│   ├── User.cs
+│   └── VestingInfo.cs
+├── obj/
+│   └── Debug/
+│       └── net8.0/
+│           ├── EquityAwardTrackerApi.AssemblyInfo.cs
+│           ├── EquityAwardTrackerApi.csproj.FileListAbsolute.txt
+│           ├── EquityAwardTrackerApi.GeneratedMSBuildEditorConfig.editorconfig
+│           ├── EquityAwardTrackerApi.MvcApplicationPartsAssemblyInfo.cs
+│           ├── staticwebassets/
+│           └── ... (other build artifacts)
+│   ├── EquityAwardTrackerApi.csproj.nuget.dgspec.json
+│   ├── EquityAwardTrackerApi.csproj.nuget.g.props
+│   ├── EquityAwardTrackerApi.csproj.nuget.g.targets
+│   ├── project.assets.json
+│   └── ... (other obj files)
+├── Properties/
+│   └── launchSettings.json
+└── Services/
+    └── StockService.cs
