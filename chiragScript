@@ -1,0 +1,40 @@
+You know Without proper documentation, new developers struggle to understand how the 
+
+API works, leading to wasted time searching through code, asking multiple questions, and making assumptions,
+
+which often result in delays and misunderstandings.
+ 
+External teams or clients integrating with our API face
+
+similar challenges—without clear instructions on available endpoints, request formats, and authentication
+
+requirements, they may send incorrect data, leading to failed requests and unnecessary troubleshooting.
+ 
+These issues arise because manual documentation is often outdated, inconsistent, or difficult to maintain 
+
+as the system evolves.
+ 
+To address these concerns, we implemented OpenAPI using Swagger UI, which generates API documentation 
+
+directly from the source code, ensuring accuracy, automatic updates, and accessibility through a web 
+
+interface (/swagger-ui.html).
+ 
+The benefits of this approach are developers can visually explore API 
+
+endpoints without guesswork.
+ 
+New team members onboard faster, clients integrate more smoothly with clear 
+
+request and response structures.
+ 
+By implementing OpenAPI, we have created a 
+
+structured, efficient, and scalable system that enhances developer productivity, ensures API clarity, 
+
+and simplifies integration for both internal and external teams, supporting long-term stability and 
+
+usability.
+ 
+Now, I’ll hand it over to Survesh, who will explain the technical implementation in more detail.
+ 
